@@ -1,15 +1,14 @@
-import numpy as np
-from tensorflow.keras.models import load_model
+import joblib
 
 
-model = load_model("models/deepfake_model.h5")
+model = joblib.load("models/deepfake_model.pkl")
 
 
 def predict(features):
 
     prediction = model.predict(features)
 
-    if prediction > 0.5:
+    if prediction[0] == 1:
         return "Deepfake"
     else:
         return "Real"
