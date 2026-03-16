@@ -1,26 +1,22 @@
 import numpy as np
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
+from sklearn.linear_model import LogisticRegression
+import joblib
+import os
+
+
+os.makedirs("models", exist_ok=True)
 
 
 X = np.random.rand(200, 14)
+
 y = np.random.randint(0, 2, 200)
 
 
-model = Sequential()
+model = LogisticRegression()
 
-model.add(Dense(64, activation="relu", input_shape=(14,)))
-model.add(Dense(32, activation="relu"))
-model.add(Dense(1, activation="sigmoid"))
+model.fit(X, y)
 
-model.compile(
-    optimizer="adam",
-    loss="binary_crossentropy",
-    metrics=["accuracy"]
-)
 
-model.fit(X, y, epochs=10)
+joblib.dump(model, "models/deepfake_model.pkl")
 
-model.save("models/deepfake_model.h5")
-
-print("Model saved successfully")
+print("Model trained and saved successfully")
