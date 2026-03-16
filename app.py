@@ -9,7 +9,9 @@ from utils.prediction import predict
 
 st.title("Multimodal Deepfake Detection")
 
-st.write("Upload a video file to analyze whether it is real or manipulated.")
+st.write(
+    "Upload a video to analyze whether it appears real or manipulated."
+)
 
 
 uploaded_file = st.file_uploader(
@@ -30,17 +32,23 @@ if uploaded_file is not None:
 
     st.write("Processing video...")
 
+
     frames = extract_frames(video_path)
 
     audio_features = extract_audio_features(video_path)
 
     fusion_features = fuse_features(frames, audio_features)
 
+
     result = predict(fusion_features)
+
 
     st.subheader("Detection Result")
 
     if result == "Deepfake":
+
         st.error("The video appears to be a deepfake.")
+
     else:
+
         st.success("The video appears to be real.")
