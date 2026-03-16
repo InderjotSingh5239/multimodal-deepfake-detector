@@ -17,17 +17,17 @@ def extract_frames(video_path, max_frames=20):
             break
 
         frame = cv2.resize(frame, (64, 64))
+
         frames.append(frame)
 
         count += 1
+
         if count >= max_frames:
             break
 
     cap.release()
 
-    frames = np.array(frames)
-
     if len(frames) == 0:
         return np.zeros((20, 64, 64, 3))
 
-    return frames
+    return np.array(frames)
