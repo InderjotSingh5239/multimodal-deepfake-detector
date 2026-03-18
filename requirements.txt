@@ -5,3 +5,4 @@ librosa
 plotly
 pillow
 moviepy
+scikit-learn
