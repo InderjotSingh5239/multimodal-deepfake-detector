@@ -4,4 +4,3 @@ Pillow
 matplotlib
 pandas
 opencv-python-headless
-tensorflow
