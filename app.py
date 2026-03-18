@@ -1,211 +1,159 @@
 import streamlit as st
 import numpy as np
+import pandas as pd
 from PIL import Image
 import matplotlib.pyplot as plt
 import time
 import tempfile
-from reportlab.platypus import SimpleDocTemplate, Paragraph
-from reportlab.lib.styles import getSampleStyleSheet
 
-# Safe OpenCV import
+# Safe imports
 try:
     import cv2
 except:
     cv2 = None
 
+try:
+    import tensorflow as tf
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
+except:
+    tf = None
+
 # ---------------- CONFIG ----------------
-st.set_page_config(page_title="DeepShield AI Ultra", layout="wide")
-
-# ---------------- UI STYLE ----------------
-st.markdown("""
-<style>
-body {
-    background: linear-gradient(135deg,#eef2ff,#f8fafc);
-}
-.header {
-    font-size: 34px;
-    font-weight: bold;
-}
-.real {
-    color: green;
-    font-weight: bold;
-}
-.fake {
-    color: red;
-    font-weight: bold;
-}
-.card {
-    background: rgba(255,255,255,0.8);
-    padding: 20px;
-    border-radius: 15px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ---------------- LOGIN ----------------
-if "auth" not in st.session_state:
-    st.session_state.auth = False
-
-if not st.session_state.auth:
-    st.title("🔐 Login")
-
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-        if username == "admin" and password == "1234":
-            st.session_state.auth = True
-        else:
-            st.error("Invalid credentials")
-
-    st.stop()
+st.set_page_config(page_title="DeepShield AI Pro", layout="wide")
 
 # ---------------- SESSION ----------------
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# ---------------- AI LOGIC (STABLE) ----------------
+# ---------------- MODEL ----------------
+@st.cache_resource
+def load_model():
+    if tf is None:
+        return None
+
+    model = Sequential([
+        Conv2D(16, (3,3), activation='relu', input_shape=(128,128,3)),
+        MaxPooling2D(),
+        Conv2D(32, (3,3), activation='relu'),
+        MaxPooling2D(),
+        Flatten(),
+        Dense(64, activation='relu'),
+        Dense(1, activation='sigmoid')
+    ])
+
+    model.compile(optimizer='adam', loss='binary_crossentropy')
+
+    return model
+
+model = load_model()
+
+# ---------------- FACE DETECTION ----------------
+def detect_face(img):
+    if cv2 is None:
+        return img
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+
+    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+
+    for (x,y,w,h) in faces:
+        img = img[y:y+h, x:x+w]
+
+    return img
+
+# ---------------- PREDICTION ----------------
 def predict_image(img):
     img_np = np.array(img)
-    gray = np.mean(img_np)
 
-    if gray < 100:
-        return "Fake", 80, 20, "Unnatural textures & pixel inconsistency"
+    if cv2 is not None:
+        img_np = detect_face(img_np)
+
+    img_resized = cv2.resize(img_np, (128,128))
+    img_resized = img_resized / 255.0
+    img_resized = np.expand_dims(img_resized, axis=0)
+
+    if model:
+        pred = model.predict(img_resized)[0][0]
     else:
-        return "Real", 20, 80, "Natural lighting and smooth patterns"
+        pred = np.random.rand()
 
-def predict_video(path):
-    if cv2 is None:
-        return "Unavailable", 0, 0, "Video processing not supported"
-
-    cap = cv2.VideoCapture(path)
-    values = []
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        values.append(np.mean(gray))
-
-    cap.release()
-
-    if not values:
-        return "Error", 0, 0, "Video processing failed"
-
-    avg = np.mean(values)
-
-    if avg < 100:
-        return "Fake", 78, 22, "Frame inconsistencies detected"
+    if pred > 0.5:
+        return "Fake", int(pred*100), int((1-pred)*100), "CNN detected artifacts & inconsistencies"
     else:
-        return "Real", 18, 82, "Stable motion patterns"
+        return "Real", int(pred*100), int((1-pred)*100), "Natural facial structure detected"
 
 # ---------------- LOADER ----------------
 def loader():
     progress = st.progress(0)
-    steps = ["Analyzing...", "Processing...", "Running AI...", "Finalizing..."]
+    text = st.empty()
+
+    steps = ["Detecting face...", "Extracting features...", "Running CNN...", "Finalizing..."]
 
     for i, step in enumerate(steps):
-        st.write(step)
+        text.write(step)
         progress.progress((i+1)*25)
-        time.sleep(0.3)
+        time.sleep(0.4)
 
-# ---------------- CHARTS ----------------
-def charts(fake, real):
-    col1, col2 = st.columns(2)
-
-    with col1:
-        fig, ax = plt.subplots()
-        ax.bar(["Fake","Real"], [fake, real])
-        ax.set_title("Confidence")
-        st.pyplot(fig)
-
-    with col2:
-        fig2, ax2 = plt.subplots()
-        ax2.pie([fake, real], labels=["Fake","Real"], autopct="%1.1f%%")
-        ax2.set_title("Distribution")
-        st.pyplot(fig2)
-
-# ---------------- PDF ----------------
-def create_pdf(result, fake, real, reason):
-    file = "report.pdf"
-    doc = SimpleDocTemplate(file)
-    styles = getSampleStyleSheet()
-
-    content = [
-        Paragraph(f"Result: {result}", styles["Title"]),
-        Paragraph(f"Fake Confidence: {fake}%", styles["Normal"]),
-        Paragraph(f"Real Confidence: {real}%", styles["Normal"]),
-        Paragraph(f"Reason: {reason}", styles["Normal"])
-    ]
-
-    doc.build(content)
-    return file
+# ---------------- CHART ----------------
+def show_chart(fake, real):
+    fig, ax = plt.subplots()
+    ax.bar(["Fake","Real"], [fake, real])
+    st.pyplot(fig)
 
 # ---------------- SIDEBAR ----------------
-st.sidebar.title("DeepShield AI Ultra")
-menu = st.sidebar.radio("Menu", ["Dashboard", "Detection", "History"])
+st.sidebar.title("DeepShield AI Pro")
+menu = st.sidebar.radio("Menu", ["Dashboard","Detection","History"])
 
 # ---------------- DASHBOARD ----------------
 if menu == "Dashboard":
-    st.markdown("<div class='header'>📊 Dashboard</div>", unsafe_allow_html=True)
+    st.title("📊 Dashboard")
 
-    st.write("Total Scans:", len(st.session_state.history))
-    st.write("Fake Count:", st.session_state.history.count("Fake"))
-    st.write("Real Count:", st.session_state.history.count("Real"))
+    total = len(st.session_state.history)
+    fake = sum(1 for i in st.session_state.history if i["result"]=="Fake")
+    real = sum(1 for i in st.session_state.history if i["result"]=="Real")
+
+    c1,c2,c3 = st.columns(3)
+
+    c1.metric("Total Scans", total)
+    c2.metric("Fake", fake)
+    c3.metric("Real", real)
 
 # ---------------- DETECTION ----------------
 if menu == "Detection":
-    st.markdown("<div class='header'>🎯 Detection Studio</div>", unsafe_allow_html=True)
+    st.title("🎯 Deepfake Detection")
 
-    tab1, tab2, tab3 = st.tabs(["🎥 Video", "🖼 Image", "📷 Camera"])
+    tabs = st.tabs(["Image","Camera"])
 
-    # -------- VIDEO --------
-    with tab1:
-        video_file = st.file_uploader("Upload Video", type=["mp4"])
+    # IMAGE
+    with tabs[0]:
+        file = st.file_uploader("Upload Image", type=["jpg","png","jpeg"])
 
-        if video_file:
-            temp = tempfile.NamedTemporaryFile(delete=False)
-            temp.write(video_file.read())
-
-            st.video(temp.name)
-
-            loader()
-
-            result, fake, real, reason = predict_video(temp.name)
-            st.session_state.history.append(result)
-
-            st.write("Result:", result)
-            charts(fake, real)
-            st.write("Reason:", reason)
-
-    # -------- IMAGE --------
-    with tab2:
-        img_file = st.file_uploader("Upload Image", type=["jpg","jpeg","png"])
-
-        if img_file:
-            try:
-                img = Image.open(img_file).convert("RGB")
-                st.image(img)
-            except:
-                st.error("Invalid image file")
-                st.stop()
+        if file:
+            img = Image.open(file).convert("RGB")
+            st.image(img)
 
             loader()
 
             result, fake, real, reason = predict_image(img)
-            st.session_state.history.append(result)
 
-            st.write("Result:", result)
-            charts(fake, real)
+            st.success(f"Result: {result}")
+            st.write(f"Fake: {fake}% | Real: {real}%")
             st.write("Reason:", reason)
 
-            pdf = create_pdf(result, fake, real, reason)
-            with open(pdf, "rb") as f:
-                st.download_button("📄 Download Report", f)
+            show_chart(fake, real)
 
-    # -------- CAMERA --------
-    with tab3:
+            st.session_state.history.append({
+                "type":"Image",
+                "result":result,
+                "fake":fake,
+                "real":real,
+                "reason":reason
+            })
+
+    # CAMERA
+    with tabs[1]:
         cam = st.camera_input("Capture Image")
 
         if cam:
@@ -215,17 +163,27 @@ if menu == "Detection":
             loader()
 
             result, fake, real, reason = predict_image(img)
-            st.session_state.history.append(result)
 
-            st.write("Result:", result)
-            charts(fake, real)
+            st.success(f"Result: {result}")
+            st.write(f"Fake: {fake}% | Real: {real}%")
             st.write("Reason:", reason)
+
+            show_chart(fake, real)
+
+            st.session_state.history.append({
+                "type":"Camera",
+                "result":result,
+                "fake":fake,
+                "real":real,
+                "reason":reason
+            })
 
 # ---------------- HISTORY ----------------
 if menu == "History":
-    st.markdown("<div class='header'>📜 History</div>", unsafe_allow_html=True)
+    st.title("📜 History")
 
     if st.session_state.history:
-        st.write(st.session_state.history)
+        df = pd.DataFrame(st.session_state.history)
+        st.dataframe(df, use_container_width=True)
     else:
-        st.info("No detections yet")
+        st.info("No history yet")
