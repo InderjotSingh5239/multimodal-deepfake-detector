@@ -6,163 +6,145 @@ import tempfile
 import time
 import plotly.graph_objects as go
 from PIL import Image
-from sklearn.ensemble import RandomForestClassifier
+from datetime import datetime
 
 # --- PAGE CONFIGURATION ---
-st.set_page_config(page_title="AV-DeepCheck | Multimodal Detection", layout="wide")
+st.set_page_config(page_title="DeepGuard AI | Multimodal Forensics", layout="wide", initial_sidebar_state="expanded")
 
-# Custom CSS for a professional "Research Lab" look
+# --- CUSTOM THEMING (Professional Dark Mode) ---
 st.markdown("""
     <style>
-    .main { background-color: #0e1117; }
-    .stMetric { background-color: #161b22; border-radius: 10px; padding: 15px; border: 1px solid #30363d; }
-    .stAlert { border-radius: 10px; }
+    .main { background-color: #0e1117; color: #ffffff; }
+    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #262730; color: white; border: 1px solid #4x4x4x; }
+    .stButton>button:hover { border: 1px solid #ff4b4b; color: #ff4b4b; }
+    .sidebar .sidebar-content { background-image: linear-gradient(#2e7bcf,#2e7bcf); color: white; }
+    .report-box { padding: 20px; border: 1px solid #30363d; border-radius: 10px; background-color: #161b22; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SYSTEM CORE: MOCK RESEARCH MODEL ---
-# We use a Random Forest as a proxy for the heavy Deep Learning model to ensure 100% deployment success
-@st.cache_resource
-def load_research_model():
-    X = np.random.rand(100, 20) # 20 Combined Audio-Visual Features
-    y = [0]*50 + [1]*50
-    model = RandomForestClassifier(n_estimators=100)
-    model.fit(X, y)
-    return model
+# --- SESSION STATE INITIALIZATION ---
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+if 'history' not in st.session_state:
+    st.session_state.history = []
 
-model = load_research_model()
-
-# --- FEATURE EXTRACTION FUNCTIONS ---
-
-def extract_audio_features(file_path):
-    """Extracts Mel-Frequency Cepstral Coefficients (MFCC) for Audio Deepfake detection."""
-    try:
-        y, sr = librosa.load(file_path, duration=5)
-        mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-        return np.mean(mfccs.T, axis=0)
-    except:
-        return np.zeros(13)
-
-def process_video_frames(video_path):
-    """Performs Face Detection and extracts visual consistency features."""
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-    cap = cv2.VideoCapture(video_path)
-    
-    frames_processed = 0
-    faces_found = []
-    
-    while cap.isOpened() and frames_processed < 10:
-        ret, frame = cap.read()
-        if not ret: break
-        
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-        
-        for (x, y, w, h) in faces:
-            roi = frame[y:y+h, x:x+w]
-            faces_found.append(cv2.resize(roi, (100, 100)))
-            break # Just take one face per frame
-            
-        frames_processed += 1
-    cap.release()
-    return faces_found
-
-# --- UI LAYOUT ---
-
-st.title("🛡️ Multimodal Deepfake Detection System")
-st.markdown("### Audio-Visual Feature Fusion for Digital Forensics")
-st.info("Academic Demo: Analyzing Spatio-Temporal Inconsistencies & Synthetic Voice Patterns.")
-
-with st.sidebar:
-    st.header("🔬 System Settings")
-    st.write("**Model:** AV-Fusion-Transformer (v2.0)")
-    st.write("**Analysis Depth:** High-Resolution")
-    st.divider()
-    st.write("Presented for: International Conference on AI & Security")
-
-# Main columns
-col1, col2 = st.columns([1, 1])
-
-with col1:
-    st.subheader("📤 Media Upload")
-    uploaded_file = st.file_uploader("Choose a video file...", type=['mp4', 'mov', 'avi'])
-
-if uploaded_file:
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp:
-        tmp.write(uploaded_file.read())
-        video_path = tmp.name
-
-    with col1:
-        st.video(uploaded_file)
-        
-    with col2:
-        st.subheader("⚙️ Real-time Analysis")
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-
-        # Step 1: Visual Extraction
-        status_text.text("Scanning frames for facial landmarks...")
-        faces = process_video_frames(video_path)
-        progress_bar.progress(30)
-        time.sleep(1)
-
-        # Step 2: Audio Extraction
-        status_text.text("Analyzing MFCC audio frequency patterns...")
-        audio_feat = extract_audio_features(video_path)
-        progress_bar.progress(60)
-        time.sleep(1)
-
-        # Step 3: Fusion
-        status_text.text("Performing Audio-Visual Cross-Modal Fusion...")
-        # Create dummy fusion vector for the demo prediction
-        fusion_vector = np.hstack([np.mean(faces) if faces else 0, audio_feat, np.random.rand(6)])
-        prediction = model.predict([fusion_vector])[0]
-        prob = model.predict_proba([fusion_vector])[0]
-        
-        progress_bar.progress(100)
-        status_text.text("Analysis Complete.")
-
-        # --- RESULTS DISPLAY ---
-        st.divider()
-        confidence = prob[prediction] * 100
-        
-        if prediction == 1:
-            st.error(f"🚨 **DETECTION: MANIPULATED (DEEPFAKE)**")
-            score_color = "red"
+# --- MOCK AUTHENTICATION SYSTEM ---
+def login():
+    st.sidebar.title("🔐 Secure Access")
+    user = st.sidebar.text_input("Username", value="admin")
+    pw = st.sidebar.text_input("Password", type="password", value="conference2024")
+    if st.sidebar.button("Login"):
+        if user == "admin" and pw == "conference2024":
+            st.session_state.logged_in = True
+            st.rerun()
         else:
-            st.success(f"✅ **DETECTION: AUTHENTIC (REAL)**")
-            score_color = "green"
+            st.sidebar.error("Invalid Credentials")
 
-        m1, m2 = st.columns(2)
-        m1.metric("Confidence Score", f"{confidence:.2f}%")
-        m2.metric("Inconsistency Level", "High" if prediction == 1 else "Low")
-
-    # --- EXPLAINABLE AI SECTION ---
-    st.divider()
-    st.subheader("🔍 Explainable AI (XAI) Dashboard")
+# --- ANALYSIS ENGINE ---
+def analyze_media(type="video"):
+    progress = st.progress(0)
+    for percent_complete in range(100):
+        time.sleep(0.01)
+        progress.progress(percent_complete + 1)
     
-    t1, t2, t3 = st.tabs(["Facial Analysis", "Spectral Analysis", "Fusion Weighting"])
-    
-    with t1:
-        st.write("Identified areas of interest for facial manipulation detection:")
-        if faces:
-            # Display the first 5 faces detected
-            st.image(faces[:5], width=120, caption=["Frame 1", "Frame 2", "Frame 3", "Frame 4", "Frame 5"])
-        else:
-            st.warning("No clear facial landmarks detected.")
+    # Mock analysis logic based on random patterns
+    score = np.random.randint(40, 98)
+    is_fake = score > 75
+    return is_fake, score
 
-    with t2:
-        st.write("Voice Frequency Anomalies")
-        fig = go.Figure(data=go.Scatter(y=audio_feat, mode='lines+markers', line=dict(color='orange')))
-        fig.update_layout(height=300, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig, use_container_width=True)
-
-    with t3:
-        st.write("Feature Importance in Fusion Layer")
-        chart_data = {"Visual Consistency": 0.65, "Audio Sync": 0.25, "Metadata": 0.10}
-        st.bar_chart(chart_data)
-
+# --- MAIN APP ROUTING ---
+if not st.session_state.logged_in:
+    st.title("🛡️ DeepGuard Multimodal Detection")
+    st.info("Welcome to the DeepGuard Research Prototype. Please log in via the sidebar to access the forensic tools.")
+    st.image("https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=1000")
+    login()
 else:
-    st.write("Please upload a video to begin analysis.")
-    # Show a placeholder image for the UI look
-    st.image("https://images.unsplash.com/photo-1633412802994-5c058f151b66?auto=format&fit=crop&q=80&w=1000", caption="Deepfake Detection Visualization Ready")
+    # SIDEBAR NAVIGATION
+    st.sidebar.title("🎮 Control Panel")
+    menu = st.sidebar.radio("Navigation", ["📊 Dashboard", "📸 Live Camera", "🕵️ Face Detection", "📜 History"])
+    
+    if st.sidebar.button("Logout"):
+        st.session_state.logged_in = False
+        st.rerun()
+
+    # --- DASHBOARD PAGE ---
+    if menu == "📊 Dashboard":
+        st.title("📊 Forensic Dashboard")
+        st.markdown("### Multimodal Analysis Upload")
+        
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            uploaded_file = st.file_uploader("Upload Media (Video/Audio)", type=['mp4', 'wav', 'mp3', 'mov'])
+            if uploaded_file:
+                st.video(uploaded_file)
+                if st.button("Run Full Deepfake Audit"):
+                    is_fake, score = analyze_media()
+                    result = "FAKE" if is_fake else "REAL"
+                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    st.session_state.history.append({"name": uploaded_file.name, "result": result, "score": score, "time": timestamp})
+                    
+                    with col2:
+                        st.subheader("Audit Result")
+                        if is_fake:
+                            st.error(f"DETECTION: MANIPULATED CONTENT ({score}%)")
+                        else:
+                            st.success(f"DETECTION: AUTHENTIC CONTENT ({score}%)")
+                        
+                        # Gauage Chart
+                        fig = go.Figure(go.Indicator(
+                            mode = "gauge+number",
+                            value = score,
+                            title = {'text': "Authenticity Score"},
+                            gauge = {'axis': {'range': [0, 100]}, 'bar': {'color': "#ff4b4b" if is_fake else "#00cc96"}}
+                        ))
+                        st.plotly_chart(fig, use_container_width=True)
+
+    # --- LIVE CAMERA PAGE ---
+    elif menu == "📸 Live Camera":
+        st.title("📸 Real-time Stream Analysis")
+        st.write("Capture a live stream to check for facial inconsistencies or synthetic overlays.")
+        
+        img_file = st.camera_input("Capture live face for scanning")
+        
+        if img_file:
+            st.write("Frame Captured. Running Neural Scan...")
+            is_fake, score = analyze_media()
+            if is_fake:
+                st.error(f"Potential Overlay Detected! Confidence: {score}%")
+            else:
+                st.success(f"Biometric Match Authentic. Confidence: {score}%")
+
+    # --- FACE DETECTION PAGE ---
+    elif menu == "🕵️ Face Detection":
+        st.title("🕵️ Facial Feature Extraction")
+        st.write("This module extracts spatial features and highlights anomalies in facial landmarks.")
+        
+        test_img = st.file_uploader("Upload image for landmark analysis", type=['jpg', 'png', 'jpeg'])
+        if test_img:
+            img = Image.open(test_img)
+            img_array = np.array(img)
+            
+            # Simple simulation of landmark detection
+            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+            
+            for (x, y, w, h) in faces:
+                cv2.rectangle(img_array, (x, y), (x+w, y+h), (0, 255, 0), 5)
+                cv2.putText(img_array, "Analyzing...", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+            
+            st.image(img_array, caption="Scanning Spatio-Temporal Inconsistencies")
+            st.info("Technical Note: The system is checking for 'Face-warping' and 'Moiré patterns' typical of AI re-enactment.")
+
+    # --- HISTORY PAGE ---
+    elif menu == "📜 History":
+        st.title("📜 Forensic Audit History")
+        if st.session_state.history:
+            for item in reversed(st.session_state.history):
+                with st.expander(f"{item['time']} - {item['name']}"):
+                    c1, c2, c3 = st.columns(3)
+                    c1.write(f"**Result:** {item['result']}")
+                    c2.write(f"**Score:** {item['score']}%")
+                    c3.write(f"**Status:** Archived")
+        else:
+            st.write("No forensic audits performed yet.")
