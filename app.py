@@ -5,47 +5,28 @@ import tempfile
 from PIL import Image
 import matplotlib.pyplot as plt
 import time
+import os
+
+# AI
+import tensorflow as tf
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras import layers, models
+
+# PDF
 from reportlab.platypus import SimpleDocTemplate, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 
 # ---------------- CONFIG ----------------
-st.set_page_config(page_title="DeepShield AI", layout="wide")
-
-# ---------------- CSS ----------------
-st.markdown("""
-<style>
-body {
-    background: linear-gradient(135deg,#eef2ff,#f8fafc);
-}
-
-.header {
-    font-size: 34px;
-    font-weight: 700;
-    color: #111827;
-}
-
-.card {
-    background: rgba(255,255,255,0.6);
-    backdrop-filter: blur(10px);
-    padding: 20px;
-    border-radius: 15px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
-}
-
-.real { color: green; font-weight: bold; }
-.fake { color: red; font-weight: bold; }
-</style>
-""", unsafe_allow_html=True)
+st.set_page_config(page_title="DeepShield AI Ultra", layout="wide")
 
 # ---------------- LOGIN ----------------
 if "auth" not in st.session_state:
     st.session_state.auth = False
 
 if not st.session_state.auth:
-    st.title("Login")
+    st.title("🔐 Login")
     u = st.text_input("Username")
     p = st.text_input("Password", type="password")
-
     if st.button("Login"):
         if u == "admin" and p == "1234":
             st.session_state.auth = True
@@ -53,182 +34,174 @@ if not st.session_state.auth:
             st.error("Wrong credentials")
     st.stop()
 
-# ---------------- SIDEBAR ----------------
-st.sidebar.title("DeepShield AI")
-menu = st.sidebar.radio("Menu", ["Dashboard", "Detection", "History"])
+# ---------------- SESSION ----------------
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+# ---------------- FACE DETECTOR ----------------
+face_cascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
+
+def extract_face(img):
+    img_np = np.array(img)
+    gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+
+    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+
+    if len(faces) == 0:
+        return img  # fallback
+
+    x, y, w, h = faces[0]
+    face = img_np[y:y+h, x:x+w]
+
+    return Image.fromarray(face)
 
 # ---------------- MODEL ----------------
-def predict(val):
-    if val < 100:
-        return "Fake", 80, 20, "Facial inconsistency detected"
-    else:
-        return "Real", 20, 80, "Natural facial pattern"
+MODEL_PATH = "deepfake_resnet.h5"
 
-# ---------------- FEATURES ----------------
-def video_feature(path):
+def train_model():
+    IMG_SIZE = 128
+
+    data = tf.keras.preprocessing.image_dataset_from_directory(
+        "dataset",
+        image_size=(IMG_SIZE, IMG_SIZE),
+        batch_size=32
+    )
+
+    base_model = MobileNetV2(
+        input_shape=(IMG_SIZE, IMG_SIZE, 3),
+        include_top=False,
+        weights="imagenet"
+    )
+
+    base_model.trainable = False
+
+    model = models.Sequential([
+        base_model,
+        layers.GlobalAveragePooling2D(),
+        layers.Dense(128, activation='relu'),
+        layers.Dense(1, activation='sigmoid')
+    ])
+
+    model.compile(
+        optimizer='adam',
+        loss='binary_crossentropy',
+        metrics=['accuracy']
+    )
+
+    model.fit(data, epochs=5)
+
+    model.save(MODEL_PATH)
+    return model
+
+# LOAD / TRAIN
+if os.path.exists(MODEL_PATH):
+    model = tf.keras.models.load_model(MODEL_PATH)
+else:
+    st.warning("Training advanced model...")
+    model = train_model()
+
+# ---------------- PREDICT ----------------
+def predict_image(img):
+    face = extract_face(img)
+    face = face.resize((128,128))
+    arr = np.array(face)/255.0
+    arr = np.expand_dims(arr, axis=0)
+
+    pred = model.predict(arr)[0][0]
+
+    if pred < 0.5:
+        return "Fake", int((1-pred)*100), int(pred*100), "Facial artifacts + blending issues detected"
+    else:
+        return "Real", int((1-pred)*100), int(pred*100), "Consistent facial structure detected"
+
+def predict_video(path):
     cap = cv2.VideoCapture(path)
-    vals = []
+    preds = []
 
     while True:
         ret, frame = cap.read()
         if not ret:
             break
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        vals.append(np.mean(gray))
+
+        img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        face = extract_face(img)
+
+        face = face.resize((128,128))
+        arr = np.array(face)/255.0
+        arr = np.expand_dims(arr, axis=0)
+
+        p = model.predict(arr)[0][0]
+        preds.append(p)
 
     cap.release()
-    return np.mean(vals) if vals else 0
+    avg = np.mean(preds)
 
-def image_feature(img):
-    img = np.array(img)
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    return np.mean(gray)
+    if avg < 0.5:
+        return "Fake", int((1-avg)*100), int(avg*100), "Temporal + facial inconsistency"
+    else:
+        return "Real", int((1-avg)*100), int(avg*100), "Natural face movement consistency"
 
-# ---------------- GRAPH ----------------
-def graph(fake, real):
-    fig, ax = plt.subplots()
-    ax.bar(["Fake","Real"], [fake, real])
-    st.pyplot(fig)
-
-# ---------------- LOADER ----------------
-def loader():
-    progress = st.progress(0)
-    steps = ["Extracting frames","Analyzing patterns","Running AI","Finalizing"]
-
-    for i in range(4):
-        st.write(steps[i])
-        progress.progress((i+1)*25)
-        time.sleep(0.5)
-
-# ---------------- PDF ----------------
-def create_pdf(result, fake, real, reason):
-    file = "report.pdf"
-    doc = SimpleDocTemplate(file)
-    styles = getSampleStyleSheet()
-
-    content = []
-    content.append(Paragraph(f"Result: {result}", styles["Title"]))
-    content.append(Paragraph(f"Fake: {fake}%", styles["Normal"]))
-    content.append(Paragraph(f"Real: {real}%", styles["Normal"]))
-    content.append(Paragraph(f"Reason: {reason}", styles["Normal"]))
-
-    doc.build(content)
-    return file
-
-# ---------------- SESSION HISTORY ----------------
-if "history" not in st.session_state:
-    st.session_state.history = []
+# ---------------- UI ----------------
+st.sidebar.title("DeepShield AI Ultra")
+menu = st.sidebar.radio("Menu", ["Dashboard","Detection","History"])
 
 # ---------------- DASHBOARD ----------------
 if menu == "Dashboard":
-    st.markdown("<div class='header'>AI Dashboard</div>", unsafe_allow_html=True)
-
-    col1,col2,col3 = st.columns(3)
-
-    with col1:
-        st.markdown("<div class='card'><h3>Total</h3><h2>{}</h2></div>".format(len(st.session_state.history)), unsafe_allow_html=True)
-
-    with col2:
-        fake_count = sum(1 for i in st.session_state.history if i=="Fake")
-        st.markdown(f"<div class='card'><h3>Fake</h3><h2>{fake_count}</h2></div>", unsafe_allow_html=True)
-
-    with col3:
-        st.markdown("<div class='card'><h3>Status</h3><h2>Active</h2></div>", unsafe_allow_html=True)
+    st.title("📊 Dashboard")
+    st.write("Total:", len(st.session_state.history))
 
 # ---------------- DETECTION ----------------
 if menu == "Detection":
-    st.markdown("<div class='header'>Detection Studio</div>", unsafe_allow_html=True)
+    st.title("🎯 Detection Studio")
 
-    tab1,tab2,tab3 = st.tabs(["Video","Image","Camera"])
+    tab1, tab2, tab3 = st.tabs(["Video","Image","Camera"])
+
+    # IMAGE
+    with tab2:
+        file = st.file_uploader("Upload Image", type=["jpg","png","jpeg"])
+        if file:
+            img = Image.open(file).convert("RGB")
+            st.image(img)
+
+            st.info("Processing...")
+            time.sleep(1)
+
+            result,fake,real,reason = predict_image(img)
+            st.session_state.history.append(result)
+
+            st.write(result)
+            st.write("Fake:", fake,"%  Real:", real,"%")
+            st.write(reason)
 
     # VIDEO
     with tab1:
-        file = st.file_uploader("Upload Video")
-
+        file = st.file_uploader("Upload Video", type=["mp4"])
         if file:
             temp = tempfile.NamedTemporaryFile(delete=False)
             temp.write(file.read())
 
-            col1,col2 = st.columns(2)
+            st.video(temp.name)
 
-            with col1:
-                st.video(temp.name)
-
-            loader()
-
-            val = video_feature(temp.name)
-            result,fake,real,reason = predict(val)
-
+            st.info("Analyzing video...")
+            result,fake,real,reason = predict_video(temp.name)
             st.session_state.history.append(result)
 
-            with col2:
-                st.markdown("<div class='card'>", unsafe_allow_html=True)
-
-                st.subheader("Result")
-
-                if result=="Fake":
-                    st.markdown("<div class='fake'>Fake Video</div>", unsafe_allow_html=True)
-                else:
-                    st.markdown("<div class='real'>Real Video</div>", unsafe_allow_html=True)
-
-                st.write(f"Fake: {fake}%")
-                st.write(f"Real: {real}%")
-
-                graph(fake, real)
-                st.write("Reason:", reason)
-
-                pdf = create_pdf(result,fake,real,reason)
-
-                with open(pdf,"rb") as f:
-                    st.download_button("Download Report", f, file_name="report.pdf")
-
-                st.markdown("</div>", unsafe_allow_html=True)
-
-    # IMAGE
-    with tab2:
-        img_file = st.file_uploader("Upload Image")
-
-        if img_file:
-            img = Image.open(img_file)
-            st.image(img)
-
-            loader()
-
-            val = image_feature(img)
-            result,fake,real,reason = predict(val)
-
-            if result=="Fake":
-                st.markdown("<div class='fake'>Fake Image</div>", unsafe_allow_html=True)
-            else:
-                st.markdown("<div class='real'>Real Image</div>", unsafe_allow_html=True)
-
-            graph(fake, real)
+            st.write(result)
+            st.write(reason)
 
     # CAMERA
     with tab3:
         cam = st.camera_input("Capture")
-
         if cam:
-            img = Image.open(cam)
+            img = Image.open(cam).convert("RGB")
             st.image(img)
 
-            loader()
+            result,fake,real,reason = predict_image(img)
+            st.session_state.history.append(result)
 
-            val = image_feature(img)
-            result,fake,real,reason = predict(val)
-
-            if result=="Fake":
-                st.markdown("<div class='fake'>Fake Detected</div>", unsafe_allow_html=True)
-            else:
-                st.markdown("<div class='real'>Real Person</div>", unsafe_allow_html=True)
-
-            graph(fake, real)
+            st.write(result)
+            st.write(reason)
 
 # ---------------- HISTORY ----------------
 if menu == "History":
-    st.markdown("<div class='header'>Detection History</div>", unsafe_allow_html=True)
-
-    if st.session_state.history:
-        st.write(st.session_state.history)
-    else:
-        st.write("No data yet")
+    st.write(st.session_state.history)
