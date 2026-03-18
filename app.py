@@ -8,55 +8,66 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import time
 
-# ---------------- PAGE CONFIG ----------------
-st.set_page_config(page_title="Deepfake Detection", layout="wide")
+# ---------------- CONFIG ----------------
+st.set_page_config(page_title="DeepShield AI", layout="wide")
 
-# ---------------- PROFESSIONAL UI ----------------
+# ---------------- PROFESSIONAL CSS ----------------
 st.markdown("""
 <style>
 body {
-    background-color: #eef2f7;
+    background-color: #f8fafc;
 }
 
-.header {
-    font-size: 36px;
+.navbar {
+    padding: 15px;
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 22px;
     font-weight: bold;
-    color: #1f2c3d;
+    color: #1f2937;
 }
 
-.subheader {
-    font-size: 16px;
-    color: #5c6b7a;
+.section {
+    margin-top: 20px;
 }
 
 .card {
     background: white;
     padding: 20px;
-    border-radius: 15px;
-    box-shadow: 0px 4px 12px rgba(0,0,0,0.1);
+    border-radius: 12px;
+    box-shadow: 0px 2px 10px rgba(0,0,0,0.08);
 }
 
-.result-box {
-    padding: 15px;
-    border-radius: 10px;
+.title {
+    font-size: 28px;
     font-weight: bold;
+    color: #111827;
 }
 
+.subtitle {
+    color: #6b7280;
+    font-size: 14px;
+}
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------- LOGIN ----------------
 def login():
-    st.markdown("<div class='header'>Secure Login</div>", unsafe_allow_html=True)
+    st.markdown("<div class='navbar'>DeepShield AI - Login</div>", unsafe_allow_html=True)
 
-    user = st.text_input("Username")
-    pwd = st.text_input("Password", type="password")
+    col1, col2, col3 = st.columns([1,2,1])
 
-    if st.button("Login"):
-        if user == "admin" and pwd == "1234":
-            st.session_state.auth = True
-        else:
-            st.error("Invalid credentials")
+    with col2:
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
+        user = st.text_input("Username")
+        pwd = st.text_input("Password", type="password")
+
+        if st.button("Login"):
+            if user == "admin" and pwd == "1234":
+                st.session_state.auth = True
+            else:
+                st.error("Invalid credentials")
+        st.markdown("</div>", unsafe_allow_html=True)
 
 if "auth" not in st.session_state:
     st.session_state.auth = False
@@ -65,9 +76,8 @@ if not st.session_state.auth:
     login()
     st.stop()
 
-# ---------------- HEADER ----------------
-st.markdown("<div class='header'>Multimodal Deepfake Detection System</div>", unsafe_allow_html=True)
-st.markdown("<div class='subheader'>AI-powered Audio + Visual Analysis</div>", unsafe_allow_html=True)
+# ---------------- NAVBAR ----------------
+st.markdown("<div class='navbar'>DeepShield AI - Multimodal Deepfake Detection</div>", unsafe_allow_html=True)
 
 # ---------------- MODEL ----------------
 def create_model():
@@ -84,31 +94,23 @@ face_model = cv2.CascadeClassifier(
     cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 )
 
-# ---------------- FEATURE FUNCTIONS ----------------
+# ---------------- FEATURES ----------------
 def extract_visual(video_path):
     cap = cv2.VideoCapture(video_path)
     vals = []
-
     while True:
         ret, frame = cap.read()
         if not ret:
             break
-
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = face_model.detectMultiScale(gray, 1.3, 5)
-
-        for (x, y, w, h) in faces:
+        for (x,y,w,h) in faces:
             face = frame[y:y+h, x:x+w]
-            face = cv2.resize(face, (64, 64))
+            face = cv2.resize(face, (64,64))
             vals.append(np.mean(face))
             vals.append(np.std(face))
-
     cap.release()
-
-    if len(vals) == 0:
-        return np.zeros(2)
-
-    return np.array([np.mean(vals), np.std(vals)])
+    return np.array([np.mean(vals), np.std(vals)]) if vals else np.zeros(2)
 
 def extract_audio(video_path):
     try:
@@ -124,51 +126,25 @@ def extract_image(img):
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     return np.array([np.mean(gray), np.std(gray)])
 
-def fuse(v, a):
-    return np.concatenate((v, a)).reshape(1, -1)
+def fuse(v,a):
+    return np.concatenate((v,a)).reshape(1,-1)
 
-# ---------------- REASON ----------------
-def get_reason(v, a):
-    reasons = []
-    if v < 80:
-        reasons.append("Facial irregularities detected")
-    else:
-        reasons.append("Facial features appear natural")
-
-    if a < 0:
-        reasons.append("Audio inconsistency detected")
-    else:
-        reasons.append("Audio signal is consistent")
-
-    return reasons
+# ---------------- PROCESS ANIMATION ----------------
+def loader():
+    with st.spinner("Analyzing media..."):
+        time.sleep(1.5)
 
 # ---------------- GRAPH ----------------
-def show_graph(fake, real):
+def graph(fake, real):
     fig, ax = plt.subplots()
-    ax.bar(["Fake", "Real"], [fake, real])
-    ax.set_ylabel("Confidence (%)")
+    ax.bar(["Fake","Real"], [fake, real])
+    ax.set_ylabel("Confidence %")
     st.pyplot(fig)
 
-# ---------------- PROCESSING ANIMATION ----------------
-def processing_animation():
-    progress = st.progress(0)
-    status = st.empty()
+# ---------------- MAIN LAYOUT ----------------
+mode = st.radio("Select Input", ["Video", "Image", "Camera"])
 
-    steps = [
-        "Extracting frames...",
-        "Detecting faces...",
-        "Analyzing audio...",
-        "Fusing features...",
-        "Running AI model..."
-    ]
-
-    for i, step in enumerate(steps):
-        status.text(step)
-        progress.progress((i+1)*20)
-        time.sleep(0.5)
-
-# ---------------- MODE ----------------
-mode = st.radio("Choose Input Type", ["Video", "Image", "Live Camera"])
+col1, col2 = st.columns([1,1])
 
 # ---------------- VIDEO ----------------
 if mode == "Video":
@@ -177,81 +153,101 @@ if mode == "Video":
     if file:
         temp = tempfile.NamedTemporaryFile(delete=False)
         temp.write(file.read())
-        video_path = temp.name
+        path = temp.name
 
-        st.video(video_path)
+        with col1:
+            st.markdown("<div class='card'>", unsafe_allow_html=True)
+            st.video(path)
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        processing_animation()
+        loader()
 
-        v = extract_visual(video_path)
-        a = extract_audio(video_path)
-        fusion = fuse(v, a)
+        v = extract_visual(path)
+        a = extract_audio(path)
+        f = fuse(v,a)
 
-        pred = model.predict(fusion)
-        prob = model.predict_proba(fusion)
+        pred = model.predict(f)
+        prob = model.predict_proba(f)
 
-        fake_conf = prob[0][1] * 100
-        real_conf = prob[0][0] * 100
+        fake = prob[0][1]*100
+        real = prob[0][0]*100
 
-        st.markdown("### Detection Result")
+        with col2:
+            st.markdown("<div class='card'>", unsafe_allow_html=True)
+            st.markdown("<div class='title'>Result</div>", unsafe_allow_html=True)
 
-        if pred[0] == 1:
-            st.error("Deepfake Detected")
-        else:
-            st.success("Real Video")
+            if pred[0] == 1:
+                st.error("Deepfake Detected")
+            else:
+                st.success("Real Video")
 
-        st.markdown("### Confidence Scores")
-        st.write(f"Fake: {fake_conf:.2f}%")
-        st.write(f"Real: {real_conf:.2f}%")
+            st.markdown(f"Fake: {fake:.2f}%")
+            st.markdown(f"Real: {real:.2f}%")
 
-        show_graph(fake_conf, real_conf)
+            graph(fake, real)
 
-        st.markdown("### Explanation")
-        for r in get_reason(np.mean(v), np.mean(a)):
-            st.write("- " + r)
+            st.markdown("</div>", unsafe_allow_html=True)
 
 # ---------------- IMAGE ----------------
 if mode == "Image":
-    img_file = st.file_uploader("Upload Image")
+    img = st.file_uploader("Upload Image")
 
-    if img_file:
-        image = Image.open(img_file)
-        st.image(image)
+    if img:
+        image = Image.open(img)
 
-        processing_animation()
+        with col1:
+            st.markdown("<div class='card'>", unsafe_allow_html=True)
+            st.image(image)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        loader()
 
         feat = extract_image(image)
-        fusion = fuse(feat, np.zeros(26))
+        f = fuse(feat, np.zeros(26))
 
-        pred = model.predict(fusion)
-        prob = model.predict_proba(fusion)
+        pred = model.predict(f)
+        prob = model.predict_proba(f)
 
-        fake_conf = prob[0][1] * 100
-        real_conf = prob[0][0] * 100
+        fake = prob[0][1]*100
+        real = prob[0][0]*100
 
-        if pred[0] == 1:
-            st.error("Deepfake Image")
-        else:
-            st.success("Real Image")
+        with col2:
+            st.markdown("<div class='card'>", unsafe_allow_html=True)
 
-        show_graph(fake_conf, real_conf)
+            if pred[0] == 1:
+                st.error("Deepfake Image")
+            else:
+                st.success("Real Image")
+
+            graph(fake, real)
+
+            st.markdown("</div>", unsafe_allow_html=True)
 
 # ---------------- CAMERA ----------------
-if mode == "Live Camera":
+if mode == "Camera":
     cam = st.camera_input("Capture Image")
 
     if cam:
         image = Image.open(cam)
-        st.image(image)
 
-        processing_animation()
+        with col1:
+            st.markdown("<div class='card'>", unsafe_allow_html=True)
+            st.image(image)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        loader()
 
         feat = extract_image(image)
-        fusion = fuse(feat, np.zeros(26))
+        f = fuse(feat, np.zeros(26))
 
-        pred = model.predict(fusion)
+        pred = model.predict(f)
 
-        if pred[0] == 1:
-            st.error("Deepfake Detected")
-        else:
-            st.success("Real Person")
+        with col2:
+            st.markdown("<div class='card'>", unsafe_allow_html=True)
+
+            if pred[0] == 1:
+                st.error("Deepfake Detected")
+            else:
+                st.success("Real Person")
+
+            st.markdown("</div>", unsafe_allow_html=True)
