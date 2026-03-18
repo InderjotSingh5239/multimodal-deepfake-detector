@@ -1,6 +1,9 @@
 streamlit
-numpy
-Pillow
-matplotlib
-pandas
 opencv-python-headless
+numpy
+librosa
+moviepy
+scikit-learn
+joblib
+pillow
+plotly
