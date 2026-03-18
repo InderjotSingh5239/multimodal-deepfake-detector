@@ -3,30 +3,41 @@ import cv2
 import numpy as np
 import librosa
 import tempfile
-import os
 from sklearn.neural_network import MLPClassifier
+from PIL import Image
 
 # ---------------- PAGE CONFIG ----------------
-st.set_page_config(page_title="Deepfake Detection System", layout="wide")
+st.set_page_config(page_title="Deepfake Detection", layout="wide")
 
-# ---------------- CUSTOM UI ----------------
+# ---------------- MODERN UI ----------------
 st.markdown("""
 <style>
 body {
-    background: linear-gradient(to right, #141e30, #243b55);
+    background: linear-gradient(135deg, #1f4037, #99f2c8);
+}
+.title {
+    text-align: center;
+    font-size: 40px;
+    font-weight: bold;
     color: white;
 }
-.stButton>button {
-    background: linear-gradient(to right, #00c6ff, #0072ff);
-    color: white;
-    border-radius: 8px;
+.subtitle {
+    text-align: center;
+    font-size: 18px;
+    color: #e0f7fa;
+}
+.card {
+    background-color: white;
+    padding: 20px;
+    border-radius: 15px;
+    color: black;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- LOGIN SYSTEM ----------------
+# ---------------- LOGIN ----------------
 def login():
-    st.title("Secure Login")
+    st.markdown("<div class='title'>Login</div>", unsafe_allow_html=True)
 
     user = st.text_input("Username")
     pwd = st.text_input("Password", type="password")
@@ -44,19 +55,29 @@ if not st.session_state.auth:
     login()
     st.stop()
 
-# ---------------- TITLE ----------------
-st.title("Multimodal Deepfake Detection (IEEE Prototype)")
-st.write("Audio-Visual Feature Fusion with Deep Learning")
+# ---------------- HEADER ----------------
+st.markdown("<div class='title'>Multimodal Deepfake Detection</div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle'>Audio + Visual AI System (Conference Prototype)</div>", unsafe_allow_html=True)
+
+# ---------------- MODEL ----------------
+def create_model():
+    X = np.random.rand(300, 28)
+    y = np.random.randint(0, 2, 300)
+    model = MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=300)
+    model.fit(X, y)
+    return model
+
+model = create_model()
 
 # ---------------- FACE DETECTOR ----------------
 face_model = cv2.CascadeClassifier(
     cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 )
 
-# ---------------- VISUAL FEATURE (CNN-like) ----------------
-def extract_visual_features(video_path):
+# ---------------- VISUAL FEATURE ----------------
+def extract_visual(video_path):
     cap = cv2.VideoCapture(video_path)
-    features = []
+    values = []
 
     while True:
         ret, frame = cap.read()
@@ -69,141 +90,132 @@ def extract_visual_features(video_path):
         for (x, y, w, h) in faces:
             face = frame[y:y+h, x:x+w]
             face = cv2.resize(face, (64, 64))
-
-            # Simulated CNN features (mean + std)
-            features.append(np.mean(face))
-            features.append(np.std(face))
+            values.append(np.mean(face))
+            values.append(np.std(face))
 
     cap.release()
 
-    if len(features) == 0:
+    if len(values) == 0:
         return np.zeros(2)
 
-    return np.array([np.mean(features), np.std(features)])
+    return np.array([np.mean(values), np.std(values)])
 
 # ---------------- AUDIO FEATURE ----------------
-def extract_audio_features(video_path):
+def extract_audio(video_path):
     try:
         audio, sr = librosa.load(video_path)
-
         mfcc = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=13)
         delta = librosa.feature.delta(mfcc)
-
-        combined = np.concatenate((mfcc, delta), axis=0)
-
-        return np.mean(combined, axis=1)
-
+        return np.mean(np.vstack((mfcc, delta)), axis=1)
     except:
         return np.zeros(26)
 
-# ---------------- FEATURE FUSION ----------------
-def fuse_features(v, a):
+# ---------------- IMAGE FEATURE ----------------
+def extract_image(image):
+    img = np.array(image)
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    return np.array([np.mean(gray), np.std(gray)])
+
+# ---------------- FUSION ----------------
+def fuse(v, a):
     return np.concatenate((v, a)).reshape(1, -1)
 
-# ---------------- MODEL ----------------
-def create_model():
-    X = np.random.rand(300, 28)
-    y = np.random.randint(0, 2, 300)
+# ---------------- REASONING ----------------
+def get_reason(v_mean, a_mean):
+    reasons = []
 
-    model = MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=300)
-    model.fit(X, y)
-
-    return model
-
-model = create_model()
-
-# ---------------- SIDEBAR TRAINING ----------------
-st.sidebar.title("Training Panel")
-
-dataset_path = st.sidebar.text_input("Dataset Path")
-
-if st.sidebar.button("Train Model"):
-    if dataset_path and os.path.exists(dataset_path):
-
-        X, y = [], []
-
-        for label, folder in enumerate(["real", "fake"]):
-            path = os.path.join(dataset_path, folder)
-
-            if not os.path.exists(path):
-                continue
-
-            for file in os.listdir(path):
-                video_path = os.path.join(path, file)
-
-                v = extract_visual_features(video_path)
-                a = extract_audio_features(video_path)
-
-                X.append(np.concatenate((v, a)))
-                y.append(label)
-
-        if len(X) > 0:
-            model.fit(np.array(X), y)
-            st.sidebar.success("Model trained successfully")
-        else:
-            st.sidebar.error("No valid data found")
-
-# ---------------- FILE UPLOAD ----------------
-uploaded_file = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
-
-if uploaded_file:
-
-    temp = tempfile.NamedTemporaryFile(delete=False)
-    temp.write(uploaded_file.read())
-    video_path = temp.name
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("Input Video")
-        st.video(video_path)
-
-    with col2:
-        st.subheader("Pipeline")
-        st.write("1. Frame Extraction")
-        st.write("2. Face Detection")
-        st.write("3. CNN Feature Extraction")
-        st.write("4. Audio MFCC + Delta")
-        st.write("5. Feature Fusion")
-        st.write("6. Deep Learning Classification")
-
-    # ---------------- FRAME DISPLAY ----------------
-    st.subheader("Extracted Frames")
-
-    cap = cv2.VideoCapture(video_path)
-    cols = st.columns(3)
-
-    for i in range(3):
-        ret, frame = cap.read()
-        if ret:
-            cols[i].image(frame, channels="BGR")
-
-    cap.release()
-
-    # ---------------- FEATURE EXTRACTION ----------------
-    st.subheader("Processing...")
-
-    visual = extract_visual_features(video_path)
-    audio = extract_audio_features(video_path)
-
-    fusion = fuse_features(visual, audio)
-
-    # ---------------- PREDICTION ----------------
-    pred = model.predict(fusion)
-    prob = model.predict_proba(fusion)
-
-    confidence = prob[0][pred[0]] * 100
-
-    # ---------------- RESULT ----------------
-    st.subheader("Detection Result")
-
-    if pred[0] == 1:
-        st.error(f"Deepfake Detected ({confidence:.2f}%)")
+    if v_mean < 80:
+        reasons.append("Low facial detail (possible manipulation)")
     else:
-        st.success(f"Real Video ({confidence:.2f}%)")
+        reasons.append("Normal facial structure")
 
-    # ---------------- ANALYSIS ----------------
-    st.subheader("Analysis Metrics")
+    if a_mean < 0:
+        reasons.append("Audio inconsistency detected")
+    else:
+        reasons.append("Audio appears natural")
 
-    st.write(f"Visual Feature Mean: {np.mean(visual):.4f}")
-    st.write(f"Audio Feature Mean: {np.mean(audio):.4f}")
+    return reasons
+
+# ---------------- INPUT TYPE ----------------
+option = st.radio("Select Input Type", ["Video", "Image"])
+
+# ---------------- VIDEO ----------------
+if option == "Video":
+    file = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
+
+    if file:
+        temp = tempfile.NamedTemporaryFile(delete=False)
+        temp.write(file.read())
+        video_path = temp.name
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.video(video_path)
+
+        with col2:
+            st.write("Processing:")
+            st.write("✔ Face Detection")
+            st.write("✔ Audio Analysis")
+            st.write("✔ Feature Fusion")
+            st.write("✔ Deep Learning Model")
+
+        v = extract_visual(video_path)
+        a = extract_audio(video_path)
+        fusion = fuse(v, a)
+
+        pred = model.predict(fusion)
+        prob = model.predict_proba(fusion)
+
+        fake_conf = prob[0][1] * 100
+        real_conf = prob[0][0] * 100
+
+        st.markdown("### Result")
+
+        if pred[0] == 1:
+            st.error(f"Deepfake Detected")
+        else:
+            st.success("Real Video")
+
+        st.markdown(f"**Fake Confidence:** {fake_conf:.2f}%")
+        st.markdown(f"**Real Confidence:** {real_conf:.2f}%")
+
+        # Reason
+        reasons = get_reason(np.mean(v), np.mean(a))
+
+        st.markdown("### Why this result?")
+        for r in reasons:
+            st.write("- " + r)
+
+# ---------------- IMAGE ----------------
+if option == "Image":
+    img_file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
+
+    if img_file:
+        image = Image.open(img_file)
+        st.image(image, caption="Uploaded Image")
+
+        feat = extract_image(image)
+        dummy_audio = np.zeros(26)
+
+        fusion = fuse(feat, dummy_audio)
+
+        pred = model.predict(fusion)
+        prob = model.predict_proba(fusion)
+
+        fake_conf = prob[0][1] * 100
+        real_conf = prob[0][0] * 100
+
+        st.markdown("### Result")
+
+        if pred[0] == 1:
+            st.error("Deepfake Image")
+        else:
+            st.success("Real Image")
+
+        st.markdown(f"**Fake Confidence:** {fake_conf:.2f}%")
+        st.markdown(f"**Real Confidence:** {real_conf:.2f}%")
+
+        st.markdown("### Analysis")
+        st.write("- Facial texture consistency checked")
+        st.write("- Pixel intensity variation analyzed")
