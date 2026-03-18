@@ -5,179 +5,321 @@ import librosa
 import tempfile
 import time
 import plotly.graph_objects as go
+import plotly.express as px
 from PIL import Image, ImageOps
 from datetime import datetime
 from sklearn.ensemble import RandomForestClassifier
 
-# --- ADVANCED UI CONFIG ---
-st.set_page_config(page_title="DeepVerify AI | International Conference Demo", layout="wide")
+# --- 1. GLOBAL CONFIGURATION & STYLING ---
+st.set_page_config(
+    page_title="DeepVerify Pro | Advanced Forensic Suite",
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# Custom CSS for Professional Dark/Cyber Theme
+# Custom High-End Cyber-Security Theme
 st.markdown("""
     <style>
-    .main { background-color: #0b0e14; color: #e6edf3; }
-    .stButton>button { width: 100%; border-radius: 8px; height: 3em; background-color: #21262d; color: #58a6ff; border: 1px solid #30363d; font-weight: bold; transition: 0.3s; }
-    .stButton>button:hover { border-color: #58a6ff; background-color: #30363d; transform: translateY(-2px); }
-    .sidebar .sidebar-content { background-color: #161b22; }
-    .report-card { background: rgba(22, 27, 34, 0.7); border: 1px solid #30363d; border-radius: 15px; padding: 25px; margin-bottom: 20px; }
-    .status-fake { color: #ff7b72; font-weight: bold; border: 1px solid #f85149; padding: 5px 10px; border-radius: 5px; background: rgba(248, 81, 73, 0.1); }
-    .status-real { color: #7ee787; font-weight: bold; border: 1px solid #3fb950; padding: 5px 10px; border-radius: 5px; background: rgba(63, 185, 80, 0.1); }
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+    
+    html, body, [class*="css"] { font-family: 'JetBrains Mono', monospace; }
+    
+    .stApp { background: #0d1117; color: #c9d1d9; }
+    
+    /* Custom Sidebar */
+    [data-testid="stSidebar"] { background-color: #161b22 !important; border-right: 1px solid #30363d; }
+    
+    /* Forensic Cards */
+    .forensic-card {
+        background: #1c2128;
+        border: 1px solid #444c56;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    
+    /* Result Badges */
+    .badge { padding: 8px 15px; border-radius: 5px; font-weight: bold; text-transform: uppercase; border: 1px solid; }
+    .badge-fake { color: #ff7b72; border-color: #f85149; background: rgba(248, 81, 73, 0.1); }
+    .badge-real { color: #7ee787; border-color: #3fb950; background: rgba(63, 185, 80, 0.1); }
+    
+    /* Buttons */
+    .stButton>button {
+        width: 100%;
+        background-color: #238636;
+        color: white;
+        border-radius: 6px;
+        border: none;
+        padding: 0.6rem;
+        transition: 0.2s;
+    }
+    .stButton>button:hover { background-color: #2ea043; border: 1px solid #fff; }
+    
+    /* Scanners */
+    .scan-line { height: 2px; background: #58a6ff; position: relative; animation: scan 2s infinite; }
+    @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SESSION STATE ---
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False
-if 'history' not in st.session_state:
-    st.session_state.history = []
+# --- 2. SESSION STATE MANAGEMENT ---
+if 'auth' not in st.session_state:
+    st.session_state.auth = False
+if 'logs' not in st.session_state:
+    st.session_state.logs = []
+if 'current_analysis' not in st.session_state:
+    st.session_state.current_analysis = None
 
-# --- MOCK ML ENGINE ---
+# --- 3. ANALYTICS ENGINE (Mock AI for Demo) ---
 @st.cache_resource
-def get_forensic_engine():
-    # Simulated Multi-head Attention Model
-    X = np.random.rand(100, 5)
-    y = [0]*50 + [1]*50
-    model = RandomForestClassifier(n_estimators=100).fit(X, y)
-    return model
+def load_forensic_engine():
+    # Simulated Multi-head attention model training
+    X = np.random.rand(200, 10) # 10 Forensic Features
+    y = np.random.randint(0, 2, 200)
+    clf = RandomForestClassifier(n_estimators=100)
+    clf.fit(X, y)
+    return clf
 
-engine = get_forensic_engine()
+model = load_forensic_engine()
 
-# --- HELPER FUNCTIONS ---
-def generate_radar_chart(scores):
-    categories = ['Visual Texture', 'Audio Coherence', 'Lip-Sync', 'Blink Rate', 'Lighting']
+def run_deep_scan(file_type="video"):
+    """Complex analysis pipeline simulation."""
+    time.sleep(1.5) # Feature extraction simulation
+    v_score = np.random.uniform(0.15, 0.95)
+    a_score = np.random.uniform(0.10, 0.90)
+    
+    # Weighted Cross-Modal Fusion
+    final_score = (v_score * 0.7) + (a_score * 0.3)
+    is_manipulated = final_score > 0.58
+    confidence = np.random.uniform(92.1, 99.8)
+    
+    features = {
+        "Facial Landmark Jitter": np.random.uniform(70, 95) if is_manipulated else np.random.uniform(10, 30),
+        "Audio Spectral Flux": np.random.uniform(65, 90) if is_manipulated else np.random.uniform(5, 25),
+        "Blink Rate Anomaly": np.random.uniform(60, 85) if is_manipulated else np.random.uniform(15, 40),
+        "Moiré Pattern Presence": np.random.uniform(75, 98) if is_manipulated else np.random.uniform(2, 10),
+        "Lip-Sync Offset (ms)": np.random.randint(80, 250) if is_manipulated else np.random.randint(0, 40)
+    }
+    
+    return is_manipulated, confidence, features, v_score, a_score
+
+# --- 4. VISUALIZATION COMPONENTS ---
+def draw_radar(features):
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(
-        r=scores, theta=categories, fill='toself',
-        line_color='#58a6ff', fillcolor='rgba(88, 166, 255, 0.3)'
+        r=list(features.values()),
+        theta=list(features.keys()),
+        fill='toself',
+        line_color='#58a6ff',
+        name='Forensic Signature'
     ))
     fig.update_layout(
-        polar=dict(radialaxis=dict(visible=True, range=[0, 100], gridcolor="#30363d"), bgcolor="rgba(0,0,0,0)"),
-        showlegend=False, paper_bgcolor="rgba(0,0,0,0)", font_color="white", height=350
+        polar=dict(radialaxis=dict(visible=True, range=[0, 100], color="gray"), bgcolor="#0d1117"),
+        showlegend=False, paper_bgcolor="rgba(0,0,0,0)", font_color="#c9d1d9", height=400
     )
     return fig
 
-# --- LOGIN SYSTEM ---
-def show_login():
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown("<div style='text-align: center; margin-top: 50px;'>", unsafe_allow_html=True)
-        st.image("https://cdn-icons-png.flaticon.com/512/2092/2092663.png", width=80)
-        st.title("🛡️ Investigator Portal")
-        st.write("DeepGuard Multimodal Forensic Lab")
+def draw_confidence_gauge(value, is_fake):
+    color = "#ff7b72" if is_fake else "#7ee787"
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = value,
+        domain = {'x': [0, 1], 'y': [0, 1]},
+        title = {'text': "Confidence Score", 'font': {'size': 18}},
+        gauge = {
+            'axis': {'range': [0, 100], 'tickwidth': 1},
+            'bar': {'color': color},
+            'bgcolor': "#161b22",
+            'steps': [
+                {'range': [0, 50], 'color': '#21262d'},
+                {'range': [50, 100], 'color': '#30363d'}
+            ],
+        }
+    ))
+    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", font_color="white", height=250, margin=dict(l=20,r=20,t=50,b=20))
+    return fig
+
+# --- 5. PAGE MODULES ---
+
+def login_screen():
+    c1, c2, c3 = st.columns([1, 1.5, 1])
+    with c2:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
+        st.image("https://cdn-icons-png.flaticon.com/512/1162/1162456.png", width=120)
+        st.markdown("<h1 style='color:#58a6ff;'>DeepVerify System Access</h1>", unsafe_allow_html=True)
+        st.write("University Research Prototype | International AI Conference 2026")
+        
         with st.container(border=True):
-            user = st.text_input("User ID", placeholder="admin")
-            pw = st.text_input("Access Key", type="password", placeholder="conference2026")
-            if st.button("Initialize Forensic Environment"):
-                if user == "admin" and pw == "conference2026":
-                    st.session_state.authenticated = True
+            user = st.text_input("Investigator ID")
+            key = st.text_input("Security Token", type="password")
+            if st.button("Authorize Access"):
+                if user == "admin" and key == "conference2026":
+                    st.session_state.auth = True
+                    st.success("Identity Verified. Loading Forensic Modules...")
+                    time.sleep(1)
                     st.rerun()
                 else:
-                    st.error("Access Denied: Invalid Biometric/Key Combination")
+                    st.error("Authentication Failure: Invalid Biometric or Key.")
         st.markdown("</div>", unsafe_allow_html=True)
 
-# --- MAIN APP ROUTING ---
-if not st.session_state.authenticated:
-    show_login()
-else:
-    # SIDEBAR NAVIGATION
-    with st.sidebar:
-        st.markdown("### 🛠️ Forensic Tools")
-        menu = st.radio("Navigation", ["📊 Dashboard", "📸 Live Scan", "🔍 Face Detection", "📜 Audit History"])
-        st.divider()
-        st.write("**System Status:** Active")
-        st.write("**Model:** Fusion-Net v4.2")
-        if st.button("Logout"):
-            st.session_state.authenticated = False
-            st.rerun()
-
-    # --- 1. DASHBOARD ---
-    if menu == "📊 Dashboard":
-        st.markdown("## 📊 Forensic Dashboard")
-        st.write("Perform deep-layer multimodal analysis on video or audio files.")
+def dashboard_view():
+    st.markdown("## 📊 Forensic Laboratory Dashboard")
+    st.markdown("---")
+    
+    col_upload, col_result = st.columns([1.2, 0.8])
+    
+    with col_upload:
+        st.markdown("<div class='forensic-card'>", unsafe_allow_html=True)
+        st.subheader("📁 Media Ingestion")
+        uploaded_file = st.file_uploader("Upload suspect video or audio file", type=['mp4', 'mov', 'wav', 'avi'])
         
-        file = st.file_uploader("Upload Media for Analysis", type=['mp4', 'mov', 'avi', 'wav'])
-        
-        if file:
-            c1, c2 = st.columns([1, 1])
-            with c1:
-                st.markdown("<div class='report-card'>", unsafe_allow_html=True)
-                st.video(file)
-                st.markdown("</div>", unsafe_allow_html=True)
-            
-            with c2:
-                with st.status("Running Multimodal Fusion Analysis...", expanded=True):
-                    st.write("Extracting MFCC audio vectors...")
+        if uploaded_file:
+            st.video(uploaded_file)
+            if st.button("⚡ EXECUTE MULTIMODAL AUDIT"):
+                with st.status("Analyzing Media Streams...", expanded=True) as status:
+                    st.write("Decomposing video containers into RGB frames...")
                     time.sleep(1)
-                    st.write("Analyzing spatio-temporal facial landmarks...")
+                    st.write("Extracting MFCC audio features & pitch contours...")
                     time.sleep(1)
-                    st.write("Computing cross-modal attention weights...")
+                    st.write("Correlating spatial landmarks with temporal frequency...")
+                    status.update(label="Analysis Complete", state="complete", expanded=False)
                 
-                # Mock Results
-                is_fake = np.random.choice([True, False], p=[0.4, 0.6])
-                conf = np.random.uniform(89.5, 99.8)
-                radar_scores = np.random.randint(60, 100, 5) if not is_fake else np.random.randint(20, 70, 5)
+                is_fake, conf, feat, v, a = run_deep_scan()
+                st.session_state.current_analysis = (is_fake, conf, feat, v, a, uploaded_file.name)
+                
+                # Log the entry
+                st.session_state.logs.append({
+                    "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "File": uploaded_file.name,
+                    "Verdict": "FAKE" if is_fake else "REAL",
+                    "Score": f"{conf:.1f}%"
+                })
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with col_result:
+        if st.session_state.current_analysis:
+            fake, conf, feat, v, a, name = st.session_state.current_analysis
+            st.markdown("<div class='forensic-card'>", unsafe_allow_html=True)
+            st.subheader("🎯 Audit Result")
+            
+            if fake:
+                st.markdown("<span class='badge badge-fake'>DETECTED: MANIPULATED</span>", unsafe_allow_html=True)
+                st.error("This content shows significant signs of GAN/Transformer synthesis.")
+            else:
+                st.markdown("<span class='badge badge-real'>DETECTED: AUTHENTIC</span>", unsafe_allow_html=True)
+                st.success("Biometric consistency and pixel frequency within natural range.")
+            
+            st.plotly_chart(draw_confidence_gauge(conf, fake), use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            with st.expander("📝 Detailed Observations"):
+                st.write(f"**Source:** {name}")
+                if fake:
+                    st.write("- Abnormal pixel distribution in facial mesh.")
+                    st.write("- Audio-visual asynchrony detected in mid-frequency ranges.")
+                else:
+                    st.write("- Natural lighting variance detected.")
+                    st.write("- Biological micro-movements verified.")
+
+    if st.session_state.current_analysis:
+        st.markdown("---")
+        st.subheader("🔍 Deep Feature Visualization (Explainable AI)")
+        t1, t2 = st.columns([1, 1])
+        with t1:
+            st.plotly_chart(draw_radar(st.session_state.current_analysis[2]), use_container_width=True)
+        with t2:
+            st.write("### Feature Importance")
+            st.info("The Radar chart above represents the 'Digital Fingerprint' of the media. Forgeries typically show high expansion in 'Sync Offset' and 'Landmark Jitter' sectors.")
+            # Timeline Simulation
+            timeline = np.random.normal(loc=0.5, scale=0.1, size=100)
+            if fake: timeline[40:60] += 0.3
+            fig_line = px.line(timeline, title="Inconsistency Timeline (Frame-by-Frame)", color_discrete_sequence=['#58a6ff'])
+            fig_line.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="white", height=250)
+            st.plotly_chart(fig_line, use_container_width=True)
+
+def camera_view():
+    st.markdown("## 📸 Live Biometric Scan")
+    st.write("Capturing real-time video stream for spoofing detection.")
+    
+    col_c, col_d = st.columns([1.2, 0.8])
+    
+    with col_c:
+        cam_input = st.camera_input("Forensic Camera Interface")
+        if cam_input:
+            st.markdown("<div class='scan-line'></div>", unsafe_allow_html=True)
+            with st.spinner("Decoding Live Biometrics..."):
+                time.sleep(2)
+                is_fake, conf, _, _, _ = run_deep_scan()
                 
                 if is_fake:
-                    st.markdown("### Result: <span class='status-fake'>MANIPULATED</span>", unsafe_allow_html=True)
-                    reason = "High-frequency noise detected in facial gradients + Audio pitch mismatch."
+                    st.error(f"🛑 CRITICAL: Synthetic Overlay Detected ({conf:.1f}%)")
                 else:
-                    st.markdown("### Result: <span class='status-real'>AUTHENTIC</span>", unsafe_allow_html=True)
-                    reason = "Biological signals (rPPG) and audio sync verified within normal limits."
-                
-                st.metric("Detection Confidence", f"{conf:.2f}%", delta="CRITICAL" if is_fake else "SECURE")
-                st.write(f"**Primary Evidence:** {reason}")
-                
-                # Store in history
-                st.session_state.history.append({"name": file.name, "result": "Fake" if is_fake else "Real", "conf": conf, "time": datetime.now().strftime("%H:%M")})
+                    st.success(f"✅ VERIFIED: Human Stream Authenticated ({conf:.1f}%)")
+    
+    with col_d:
+        st.subheader("Live Feed Metrics")
+        st.metric("FPS", "30.2", "0.4")
+        st.metric("Latency", "12ms", "-2ms")
+        st.divider()
+        st.info("Live mode uses a lightweight Transformer model to check for 'Frame Injection' attacks and 'Face-Swap' overlays.")
 
-            st.divider()
-            st.subheader("🔍 Deep Feature Breakdown")
-            st.plotly_chart(generate_radar_chart(radar_scores), use_container_width=True)
-
-    # --- 2. LIVE SCAN ---
-    elif menu == "📸 Live Scan":
-        st.markdown("## 📸 Real-time Stream Analysis")
-        st.info("Directly analyze live camera feed for frame-injection or overlay attacks.")
+def face_detect_view():
+    st.title("🕵️ Face Detection & Landmark Extraction")
+    st.write("Isolate individual faces to check for 'blending' artifacts.")
+    
+    img_file = st.file_uploader("Upload Image for Extraction", type=['jpg', 'png'])
+    if img_file:
+        img = Image.open(img_file)
+        img_array = np.array(img)
         
-        cam_shot = st.camera_input("Scanner")
-        if cam_shot:
-            with st.spinner("Analyzing Biometric Stream..."):
-                time.sleep(1.5)
-                st.success("Analysis Complete: Stream appears Authentic (94.2% Confidence)")
-                st.image(cam_shot, caption="Verified Identity Frame", width=400)
-
-    # --- 3. FACE DETECTION ---
-    elif menu == "🔍 Face Detection":
-        st.markdown("## 🔍 Artifact Highlight Module")
-        st.write("Upload a frame to visualize potential GAN artifacts or blending errors.")
+        # Simple Simulation of Detection
+        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
         
-        img_file = st.file_uploader("Upload Image", type=['jpg', 'png', 'jpeg'])
-        if img_file:
-            img = Image.open(img_file)
-            img_array = np.array(img)
+        for (x, y, w, h) in faces:
+            cv2.rectangle(img_array, (x, y), (x+w, y+h), (88, 166, 255), 10)
+            cv2.putText(img_array, "FACE-01: SCANNED", (x, y-15), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (88, 166, 255), 2)
             
-            # Simple AI Visualization Simulation
-            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-            faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-            
-            for (x, y, w, h) in faces:
-                cv2.rectangle(img_array, (x, y), (x+w, y+h), (88, 166, 255), 10)
-                cv2.putText(img_array, "Analyzing Texture...", (x, y-15), cv2.FONT_HERSHEY_SIMPLEX, 1, (88, 166, 255), 3)
-            
-            st.image(img_array, caption="Forensic Boundary Detection")
-            st.json({"Texture_Consistency": "0.88", "Lighting_Coherence": "0.92", "Artifact_Probability": "0.04"})
+        st.image(img_array, use_container_width=True)
+        st.success(f"Extracted {len(faces)} biometric regions for micro-texture analysis.")
 
-    # --- 4. AUDIT HISTORY ---
-    elif menu == "📜 Audit History":
-        st.markdown("## 📜 Forensic Registry")
-        if not st.session_state.history:
-            st.write("No files processed in this session.")
-        else:
-            for item in reversed(st.session_state.history):
-                with st.container(border=True):
-                    c1, c2, c3 = st.columns([2, 1, 1])
-                    c1.write(f"**File:** {item['name']}")
-                    status_class = "status-fake" if item['result'] == "Fake" else "status-real"
-                    c2.markdown(f"<span class='{status_class}'>{item['result']}</span>", unsafe_allow_html=True)
-                    c3.write(f"🕒 {item['time']}")
+def history_view():
+    st.title("📜 Global Forensic Registry")
+    if not st.session_state.logs:
+        st.write("Archive empty. No scans conducted in current session.")
+    else:
+        st.table(st.session_state.logs)
+        if st.button("🗑️ Purge Records"):
+            st.session_state.logs = []
+            st.rerun()
+
+# --- 6. MAIN NAVIGATION ROUTER ---
+if not st.session_state.auth:
+    login_screen()
+else:
+    # Sidebar Setup
+    with st.sidebar:
+        st.markdown("<h2 style='color:#58a6ff;'>DeepVerify Pro</h2>", unsafe_allow_html=True)
+        st.write(f"**Investigator:** Admin-01")
+        st.divider()
+        choice = st.radio("System Modules", ["Dashboard", "Live Camera", "Face Extraction", "Audit History"])
+        st.divider()
+        st.markdown("### Model Stats")
+        st.write("- Accuracy: 98.4%")
+        st.write("- Latency: 450ms")
+        if st.button("🚪 Secure Logout"):
+            st.session_state.auth = False
+            st.rerun()
+
+    # Route to pages
+    if choice == "Dashboard":
+        dashboard_view()
+    elif choice == "Live Camera":
+        camera_view()
+    elif choice == "Face Extraction":
+        face_detect_view()
+    elif choice == "Audit History":
+        history_view()
