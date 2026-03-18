@@ -2,8 +2,8 @@ streamlit
 opencv-python-headless
 numpy
 librosa
-moviepy
 scikit-learn
 joblib
 pillow
 plotly
+moviepy
