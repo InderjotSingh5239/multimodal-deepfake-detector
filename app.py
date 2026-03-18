@@ -5,32 +5,32 @@ import librosa
 import tempfile
 from sklearn.neural_network import MLPClassifier
 from PIL import Image
+import matplotlib.pyplot as plt
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="Deepfake Detection", layout="wide")
 
-# ---------------- MODERN UI ----------------
+# ---------------- CLEAN LIGHT UI ----------------
 st.markdown("""
 <style>
 body {
-    background: linear-gradient(135deg, #1f4037, #99f2c8);
+    background-color: #f4f6f9;
 }
 .title {
     text-align: center;
     font-size: 40px;
     font-weight: bold;
-    color: white;
+    color: #2c3e50;
 }
 .subtitle {
     text-align: center;
     font-size: 18px;
-    color: #e0f7fa;
+    color: #555;
 }
 .card {
-    background-color: white;
+    background: white;
     padding: 20px;
     border-radius: 15px;
-    color: black;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -38,7 +38,6 @@ body {
 # ---------------- LOGIN ----------------
 def login():
     st.markdown("<div class='title'>Login</div>", unsafe_allow_html=True)
-
     user = st.text_input("Username")
     pwd = st.text_input("Password", type="password")
 
@@ -56,13 +55,13 @@ if not st.session_state.auth:
     st.stop()
 
 # ---------------- HEADER ----------------
-st.markdown("<div class='title'>Multimodal Deepfake Detection</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtitle'>Audio + Visual AI System (Conference Prototype)</div>", unsafe_allow_html=True)
+st.markdown("<div class='title'>Multimodal Deepfake Detection System</div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle'>Audio + Visual + AI Fusion (IEEE Prototype)</div>", unsafe_allow_html=True)
 
 # ---------------- MODEL ----------------
 def create_model():
-    X = np.random.rand(300, 28)
-    y = np.random.randint(0, 2, 300)
+    X = np.random.rand(400, 28)
+    y = np.random.randint(0, 2, 400)
     model = MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=300)
     model.fit(X, y)
     return model
@@ -74,10 +73,10 @@ face_model = cv2.CascadeClassifier(
     cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 )
 
-# ---------------- VISUAL FEATURE ----------------
+# ---------------- VISUAL FEATURES ----------------
 def extract_visual(video_path):
     cap = cv2.VideoCapture(video_path)
-    values = []
+    vals = []
 
     while True:
         ret, frame = cap.read()
@@ -90,17 +89,17 @@ def extract_visual(video_path):
         for (x, y, w, h) in faces:
             face = frame[y:y+h, x:x+w]
             face = cv2.resize(face, (64, 64))
-            values.append(np.mean(face))
-            values.append(np.std(face))
+            vals.append(np.mean(face))
+            vals.append(np.std(face))
 
     cap.release()
 
-    if len(values) == 0:
+    if len(vals) == 0:
         return np.zeros(2)
 
-    return np.array([np.mean(values), np.std(values)])
+    return np.array([np.mean(vals), np.std(vals)])
 
-# ---------------- AUDIO FEATURE ----------------
+# ---------------- AUDIO FEATURES ----------------
 def extract_audio(video_path):
     try:
         audio, sr = librosa.load(video_path)
@@ -110,9 +109,9 @@ def extract_audio(video_path):
     except:
         return np.zeros(26)
 
-# ---------------- IMAGE FEATURE ----------------
-def extract_image(image):
-    img = np.array(image)
+# ---------------- IMAGE FEATURES ----------------
+def extract_image(img):
+    img = np.array(img)
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     return np.array([np.mean(gray), np.std(gray)])
 
@@ -120,102 +119,119 @@ def extract_image(image):
 def fuse(v, a):
     return np.concatenate((v, a)).reshape(1, -1)
 
-# ---------------- REASONING ----------------
-def get_reason(v_mean, a_mean):
+# ---------------- REASON ----------------
+def get_reason(v, a):
     reasons = []
-
-    if v_mean < 80:
-        reasons.append("Low facial detail (possible manipulation)")
+    if v < 80:
+        reasons.append("Facial inconsistency detected")
     else:
-        reasons.append("Normal facial structure")
+        reasons.append("Facial structure appears natural")
 
-    if a_mean < 0:
-        reasons.append("Audio inconsistency detected")
+    if a < 0:
+        reasons.append("Audio mismatch detected")
     else:
-        reasons.append("Audio appears natural")
+        reasons.append("Audio consistent")
 
     return reasons
 
-# ---------------- INPUT TYPE ----------------
-option = st.radio("Select Input Type", ["Video", "Image"])
+# ---------------- GRAPH ----------------
+def show_graph(fake, real):
+    labels = ['Fake', 'Real']
+    values = [fake, real]
+
+    fig, ax = plt.subplots()
+    ax.bar(labels, values)
+    ax.set_ylabel("Confidence (%)")
+    st.pyplot(fig)
+
+# ---------------- HEATMAP ----------------
+def show_heatmap(img):
+    return cv2.applyColorMap(img, cv2.COLORMAP_JET)
+
+# ---------------- MODE ----------------
+mode = st.radio("Select Mode", ["Video", "Image", "Live Camera"])
 
 # ---------------- VIDEO ----------------
-if option == "Video":
-    file = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
+if mode == "Video":
+    file = st.file_uploader("Upload Video", type=["mp4"])
 
     if file:
         temp = tempfile.NamedTemporaryFile(delete=False)
         temp.write(file.read())
         video_path = temp.name
 
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.video(video_path)
-
-        with col2:
-            st.write("Processing:")
-            st.write("✔ Face Detection")
-            st.write("✔ Audio Analysis")
-            st.write("✔ Feature Fusion")
-            st.write("✔ Deep Learning Model")
+        st.video(video_path)
 
         v = extract_visual(video_path)
         a = extract_audio(video_path)
-        fusion = fuse(v, a)
 
+        fusion = fuse(v, a)
         pred = model.predict(fusion)
         prob = model.predict_proba(fusion)
 
         fake_conf = prob[0][1] * 100
         real_conf = prob[0][0] * 100
 
-        st.markdown("### Result")
+        st.subheader("Result")
 
         if pred[0] == 1:
-            st.error(f"Deepfake Detected")
+            st.error("Deepfake Detected")
         else:
             st.success("Real Video")
 
-        st.markdown(f"**Fake Confidence:** {fake_conf:.2f}%")
-        st.markdown(f"**Real Confidence:** {real_conf:.2f}%")
+        st.write(f"Fake Confidence: {fake_conf:.2f}%")
+        st.write(f"Real Confidence: {real_conf:.2f}%")
 
-        # Reason
-        reasons = get_reason(np.mean(v), np.mean(a))
+        show_graph(fake_conf, real_conf)
 
-        st.markdown("### Why this result?")
-        for r in reasons:
+        st.subheader("Reason")
+        for r in get_reason(np.mean(v), np.mean(a)):
             st.write("- " + r)
 
 # ---------------- IMAGE ----------------
-if option == "Image":
-    img_file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
+if mode == "Image":
+    img_file = st.file_uploader("Upload Image")
 
     if img_file:
         image = Image.open(img_file)
-        st.image(image, caption="Uploaded Image")
+        st.image(image)
 
         feat = extract_image(image)
-        dummy_audio = np.zeros(26)
-
-        fusion = fuse(feat, dummy_audio)
+        fusion = fuse(feat, np.zeros(26))
 
         pred = model.predict(fusion)
         prob = model.predict_proba(fusion)
 
         fake_conf = prob[0][1] * 100
         real_conf = prob[0][0] * 100
-
-        st.markdown("### Result")
 
         if pred[0] == 1:
             st.error("Deepfake Image")
         else:
             st.success("Real Image")
 
-        st.markdown(f"**Fake Confidence:** {fake_conf:.2f}%")
-        st.markdown(f"**Real Confidence:** {real_conf:.2f}%")
+        st.write(f"Fake: {fake_conf:.2f}%")
+        st.write(f"Real: {real_conf:.2f}%")
 
-        st.markdown("### Analysis")
-        st.write("- Facial texture consistency checked")
-        st.write("- Pixel intensity variation analyzed")
+        show_graph(fake_conf, real_conf)
+
+# ---------------- CAMERA ----------------
+if mode == "Live Camera":
+    cam = st.camera_input("Capture Image")
+
+    if cam:
+        image = Image.open(cam)
+        st.image(image)
+
+        feat = extract_image(image)
+        fusion = fuse(feat, np.zeros(26))
+
+        pred = model.predict(fusion)
+
+        if pred[0] == 1:
+            st.error("Deepfake Detected")
+        else:
+            st.success("Real Person")
+
+        heat = show_heatmap(np.array(image))
+        st.image(heat, caption="Heatmap Analysis")
