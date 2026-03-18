@@ -1,8 +1,6 @@
 streamlit
 opencv-python-headless
 numpy
-librosa
-scikit-learn
-moviepy
 Pillow
 matplotlib
+reportlab
